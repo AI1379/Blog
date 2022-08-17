@@ -108,5 +108,5 @@ sitemap:
   path:
     - sitemap.xml
     - sitemap.txt
-  tags: true
-  categories: true
+  tags: false
+  categories: false

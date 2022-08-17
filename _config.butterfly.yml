@@ -260,7 +260,7 @@ addtoany:
 comments:
   # Up to two comments system, the first will be shown as default
   # Choose: Disqus/Disqusjs/Livere/Gitalk/Valine/Waline/Utterances/Facebook Comments/Twikoo/Giscus/Remark42
-  use: # Valine,Disqus
+  use: Disqusjs # Valine,Disqus
   text: true # Display the comment name next to the button
   # lazyload: The comment system will be load when comment element enters the browser's viewport.
   # If you set it to true, the comment count will be invalid
@@ -278,8 +278,8 @@ disqus:
 # DisqusJS 評論系統，可以實現在網路審查地區載入 Disqus 評論列表，兼容原版
 # https://github.com/SukkaW/DisqusJS
 disqusjs:
-  shortname:
-  apikey:
+  shortname: blog-eusbjmjrxw
+  apikey: 3Bj1cyrbPzLKFopkpNebw327981jSqLvIh8K3zGhw6uZ6ucPZCfG8HTx7cKtK2HQ
   option:
 
 # livere (來必力)
@@ -419,7 +419,7 @@ baidu_analytics:
 
 # Google Analytics
 # https://analytics.google.com/analytics/web/
-google_analytics:
+google_analytics: G-RLRJSSD696
 
 # CNZZ Analytics
 # https://www.umeng.com/
