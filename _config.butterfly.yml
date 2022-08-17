@@ -419,7 +419,7 @@ baidu_analytics:
 
 # Google Analytics
 # https://analytics.google.com/analytics/web/
-google_analytics: G-RLRJSSD696
+google_analytics:
 
 # CNZZ Analytics
 # https://www.umeng.com/
@@ -800,7 +800,7 @@ snackbar:
 
 # https://instant.page/
 # prefetch (預加載)
-instantpage: false
+instantpage: true
 
 # https://github.com/vinta/pangu.js
 # Insert a space between Chinese character and English character (中英文之間添加空格)
