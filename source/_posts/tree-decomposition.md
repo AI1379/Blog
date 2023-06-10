@@ -1,6 +1,7 @@
 ---
 title: 树链剖分
 date: 2023-5-30 21:13:00
+mathjax: true
 tags:
   - 数据结构
   - 树形结构

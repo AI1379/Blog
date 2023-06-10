@@ -1,6 +1,7 @@
 ---
 title: 关于BST：你所需要知道的一切
 date: 2022-09-17 16:43:27
+mathjax: true
 tags:
  - 数据结构
  - 树形结构
