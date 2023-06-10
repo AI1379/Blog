@@ -17,7 +17,7 @@ categories:
 
 那么树剖可以解决什么问题呢？
 
-事实上，单单一个树剖能解决的问题不多，但是由于树剖的一些优秀性质，使得我们可以通过树剖+线段树的方式，实现：
+事实上，单单一个树剖能解决的问题不多，但是由于树剖的一些优秀性质，使得我们可以通过树剖+数据结构（例如线段树）的方式，实现：
 
 1. 子树查/改
 2. 路径查/改
@@ -48,7 +48,8 @@ categories:
 
 但是这样还没用。要利用树剖的性质，我们需要记录在第二次深搜中每个节点的`dfn`序。容易发现，按照第二次深搜的流程， **同一条重链上的节点`dfn`必然连续，同一颗子树的节点`dfn`也连续。** 也就是说，我们完全可以通过树链剖分，把**子树和链上处理转化为`dfn`上的区间处理**。
 
-那么我们就可以很容易地使用区间处理的数据结构（比如线段树）实现树上子树和链上处理。
+那么我们就可以很容易地使用区间处理的数据结构（比如线段树）实现树上子树和链上处理。比如，在这张图中，我们想要修改`dfn`为4和19的节点之间路径上的信息，那么我们就可以直接在线段树上修改`1-4, 16-17, 19`这三个区间。又如，我们若要修改`dfn`为2的子树信息，只需在线段树上修改`2-10`这一区间即可。**注意，在树剖完后，我们所有的节点都是通过对应的`dfn`序来访问和修改的，而不是节点原来的编号，这个一定要记牢，否则很容易混淆导致出错**。
+
 
 但是我们还有一些细节需要处理。子树问题很好解决，但是链上处理比较复杂。虽然重链保证连续，但是我们修改的时候不一定保证在同一条重链上。
 
@@ -249,6 +250,198 @@ int main() {
 }
 ```
 
+再讲一个例题 [「SDOI」2014 旅行](https://www.luogu.com.cn/problem/P3313)
+
+这个题一眼看上去就是一个树剖的题，因为涉及了树上链上查询和修改。但是有一个小问题是，他查询并不是查询一个区间里所有的点，而是只取其中的一类（也就是信仰一个宗教的城市）。这种情况下，有一个很暴力的做法是：针对每一类节点（每一种信仰）都开一颗单独的线段树来维护。显然，这样会暴空间。
+
+但是我们有一个想法。注意到，我们正常的线段树是按照完全二叉树的方式存储的，这其中有很多叶节点的空间是浪费掉的。同时，由于还有很多的节点其实是空的（因为不信仰这个宗教），所以这种做法的空间浪费是很厉害的。
+
+于是我们考虑**动态开点**线段树。
+
+什么意思呢？顾名思义，就是**用一个点开一个点**的线段树。这样可以极大地节省空间。这样的话，我们就要抛弃原来的完全二叉树的写法，转而将儿子存在树的节点里面，就像普通的二叉树一样。事实上，动态开点线段树在数据结构题里面是一个很常见的技巧，不一定非得要和树链剖分绑定，同时还可以延伸出另一种叫主席树的数据结构，但这超出了这里的讨论范围。
+
+那么代码就好写了。虽然代码会有点长，但是逻辑还是很好理解的。
+
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define ll long long
+#define pll pair<ll, ll>
+const ll MAXN = 100010;
+struct Node {
+  ll l, r;
+  ll lson, rson;
+  ll s, m;
+};
+ll n, q;
+ll tot, root[MAXN];
+// 线段树的内存池
+Node segt[MAXN * 16];
+vector<ll> tree[MAXN];
+ll tag[MAXN], val[MAXN];
+ll idx, weight[MAXN], prefer[MAXN];
+ll dfn[MAXN], f[MAXN], top[MAXN], dep[MAXN];
+// 两次深搜树剖
+void getson(ll u, ll fa) {
+  weight[u] = 1;
+  f[u] = fa;
+  dep[u] = dep[fa] + 1;
+  for (auto v : tree[u]) {
+    if (v == fa)
+      continue;
+    getson(v, u);
+    weight[u] += weight[v];
+    if (weight[prefer[u]] < weight[v])
+      prefer[u] = v;
+  }
+}
+void decomposition(ll u, ll t) {
+  dfn[u] = ++idx;
+  top[u] = t;
+  if (prefer[u])
+    decomposition(prefer[u], t);
+  for (auto v : tree[u]) {
+    if (v == f[u] || v == prefer[u])
+      continue;
+    decomposition(v, v);
+  }
+}
+
+// 动态开点
+// 这里为了让逻辑清楚一点封装了很多函数 实际上没有他看起来那么复杂
+ll newnode(ll l, ll r) {
+  ++tot;
+  segt[tot].l = l;
+  segt[tot].r = r;
+  return tot;
+}
+void pushup(ll cur) {
+  segt[cur].m = max(segt[segt[cur].lson].m, segt[segt[cur].rson].m);
+  segt[cur].s = segt[segt[cur].lson].s + segt[segt[cur].rson].s;
+}
+// 单点修改
+// 写法和普通的线段树差不多
+void modify(ll s, ll v, ll cur) {
+  if (segt[cur].l == s && segt[cur].r == s) {
+    segt[cur].m = segt[cur].s = v;
+    return;
+  }
+  ll mid = (segt[cur].l + segt[cur].r) / 2;
+  if (s <= mid) {
+    // 看看存不存在左儿子
+    // 如果不存在就说明当前想修改的节点以前没有出现过
+    // 需要建立新的节点
+    if (!segt[cur].lson)
+      segt[cur].lson = newnode(segt[cur].l, mid);
+    modify(s, v, segt[cur].lson);
+  } else {
+    if (!segt[cur].rson)
+      segt[cur].rson = newnode(mid + 1, segt[cur].r);
+    modify(s, v, segt[cur].rson);
+  }
+  pushup(cur);
+}
+// 区间查询
+ll querymx(ll s, ll t, ll cur) {
+  if (s > t)
+    swap(s, t);
+  if (s <= segt[cur].l && segt[cur].r <= t)
+    return segt[cur].m;
+  ll mid = (segt[cur].l + segt[cur].r) / 2, res = 0;
+  if (s <= mid && segt[cur].lson)
+    res = max(res, querymx(s, t, segt[cur].lson));
+  if (mid + 1 <= t && segt[cur].rson)
+    res = max(res, querymx(s, t, segt[cur].rson));
+  return res;
+}
+ll querysum(ll s, ll t, ll cur) {
+  if (s > t)
+    swap(s, t);
+  if (s <= segt[cur].l && segt[cur].r <= t)
+    return segt[cur].s;
+  ll mid = (segt[cur].l + segt[cur].r) / 2, res = 0;
+  if (s <= mid && segt[cur].lson)
+    res += querysum(s, t, segt[cur].lson);
+  if (mid + 1 <= t && segt[cur].rson)
+    res += querysum(s, t, segt[cur].rson);
+  return res;
+}
+
+// 修改信仰
+// 相当于把这个节点在原来的线段树上归零
+// 然后在另一颗线段树上把它加回去
+// 这里还有一个做法是真的把这个节点从原来的二叉树上删掉
+// 然后用一个堆来维护线段树的内存池里面的空节点
+// 每次开点就从堆里面拿出一个节点来用
+// 这样可以进一步节省空间 但是代码很繁琐
+// （其实就相当于手写了一遍操作系统对堆内存的管理算法）
+void modifyc(ll p, ll c) {
+  modify(dfn[p], 0, root[tag[p]]);
+  tag[p] = c;
+  modify(dfn[p], val[p], root[c]);
+}
+void modifyw(ll p, ll w) {
+  modify(dfn[p], w, root[tag[p]]);
+  val[p] = w;
+}
+// 跳链查询
+ll querys(ll u, ll v) {
+  ll res = 0, c = tag[u];
+  while (top[u] != top[v]) {
+    if (dep[top[u]] < dep[top[v]])
+      swap(u, v);
+    res += querysum(dfn[u], dfn[top[u]], root[c]);
+    u = f[top[u]];
+  }
+  res += querysum(dfn[u], dfn[v], root[c]);
+  return res;
+}
+ll querym(ll u, ll v) {
+  ll res = 0, c = tag[u];
+  while (top[u] != top[v]) {
+    if (dep[top[u]] < dep[top[v]])
+      swap(u, v);
+    res = max(res, querymx(dfn[u], dfn[top[u]], root[c]));
+    u = f[top[u]];
+  }
+  res = max(res, querymx(dfn[u], dfn[v], root[c]));
+  return res;
+}
+int main() {
+  ll u, v;
+  string op;
+  cin >> n >> q;
+  for (int i = 1; i <= n; ++i) {
+    cin >> val[i] >> tag[i];
+  }
+  for (int i = 1; i <= n - 1; ++i) {
+    cin >> u >> v;
+    tree[u].emplace_back(v);
+    tree[v].emplace_back(u);
+  }
+  getson(1, 0);
+  decomposition(1, 1);
+  for (int i = 1; i <= n; ++i) {
+    if (!root[tag[i]])
+      root[tag[i]] = newnode(1, idx);
+    modify(dfn[i], val[i], root[tag[i]]);
+  }
+  while (q--) {
+    cin >> op >> u >> v;
+    if (op == "CC") {
+      modifyc(u, v);
+    } else if (op == "CW") {
+      modifyw(u, v);
+    } else if (op == "QS") {
+      cout << querys(u, v) << endl;
+    } else if (op == "QM") {
+      cout << querym(u, v) << endl;
+    }
+  }
+  return 0;
+}
+```
+
 ## 长链剖分
 
 原理和重链剖差不多，不过这里的重子定义为子树深度最大的儿子。这样的话链的个数就不再是 $O(\log n)$ 而是 $O(\sqrt n)$
@@ -303,13 +496,18 @@ void dfs(ll u, ll f) {
     dp[v] = cur;
     cur += len[v];
     dfs(v, u);
+    // 扫子树的长链 合并答案
     for (int i = 1; i <= len[v]; ++i) {
       dp[u][i] += dp[v][i - 1];
+      // 更新答案
+      // 这里注意 因为要求最小的i使对应的dp最大 所以这里打擂的时候要分类
       if ((i < ans[u] && dp[u][i] >= dp[u][ans[u]]) ||
           (i > ans[u] && dp[u][i] > dp[u][ans[u]]))
         ans[u] = i;
     }
   }
+  // 如果答案是1 也就是u的子树是一条链
+  // 这个时候显然答案应该是0 也就是只留自己
   if (dp[u][ans[u]] == 1)
     ans[u] = 0;
 }
@@ -322,6 +520,7 @@ int main() {
     tree[v].emplace_back(u);
   }
   decomposition(1, 0);
+  // 初始化
   dp[1] = cur = val;
   cur += len[1];
   dfs(1, 0);
@@ -330,3 +529,29 @@ int main() {
   return 0;
 }
 ```
+
+可以看到，单论代码量，长链剖分的题会比重链剖分要小不少，但是其实长链剖分优化dp的题普遍来讲是难于重链剖分+数据结构的。
+
+由于这类dp优化种类很多并且通常较难，这里不再细讲，有兴趣可以参考[这篇文章](https://www.cnblogs.com/zhoushuyu/p/9468669.html)。
+
+## Link-Cut Tree
+
+把LCT放到树剖里面是因为他确实和树剖密不可分。但是我们不细讲，因为码量不小（虽然功能不少）并且难度较大。
+
+首先我们知道一个事情，线段树能做的事情，其实用平衡树（比如Splay和Treap）也可以实现，甚至可以节省很多空间~~但是多费很多脑子~~。也就是说，我们重链剖分剖完了之后的结果完全可以使用平衡树而不是线段树来维护。
+
+接下来我们考虑扩展树剖，使他可以支持动态树上问题。这里的动态不是指节点上的数据是动态的，而是指**这棵树（其实是森林）的形状会变**。换句话说，存在加边和删边的操作（但是保证结果是一个森林）。
+
+这种情况下，由于树的形状发生了变化，一次树剖跑完之后的结果在变形了之后就失效了，需要重新剖分。这很麻烦，复杂度也很高。
+
+考虑优化。
+
+注意到，当我们删边的时候，如果删的是连到轻儿子的边，那么我们其实什么也不用做。而如果是连到重儿子的边，那我只要换一个重儿子就好了。事实上，并不需要保证新的儿子一定是重量最大的儿子，就算是随机儿子也能保证均摊复杂度正确。这样的剖法有时也被称作实链剖分。
+
+但是这样用线段树维护链上信息就会很麻烦，因为链改了`dfn`就不一定连续了。于是我们考虑用splay来维护。注意这里splay不能用treap代替，因为我们会需要利用`splay`操作把平衡树的某个节点提到这棵树的根上的性质来实现实链与虚链的切换。
+
+于是我们就得到了大名鼎鼎的LCT。他可以实现包括动态LCA、动态树上路径维护、可删边的并查集等等功能，而这些功能几乎只有以LCT为代表的动态树结构才能实现。
+
+当然，他也有缺点，比如不太擅长维护子树信息（想想为什么）。和他功能相似的用来处理动态树上问题的还有一个叫ETT的东西，这个和LCT恰好相反，他更擅长维护子树信息而不太好处理路径信息。
+
+由于他们的代码很繁琐且常数较大，并且考场上几乎用不到，就不贴代码了，仅作了解即可。
