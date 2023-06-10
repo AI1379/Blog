@@ -585,7 +585,7 @@ font:
   global-font-size:
   code-font-size:
   font-family:
-  code-font-family:
+  code-font-family: consolas, "JetBrains Mono", "Droid Sans Mono", monospace, Menlo, sans-serif
 
 # Font settings for the site title and site subtitle
 # 左上角網站名字 主頁居中網站名字
