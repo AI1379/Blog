@@ -84,7 +84,7 @@ ll getType(ll x) {
 
 如果`cur->val <= val`，那么`cur`及其左子树一定属于分裂后的左子树，于是我们递归的处理右子树，对右子树进行`split`操作，得到两棵树`lpart`和`rpart`，那么根据`split`的定义，`lpart`中的一定`<=val`而`rpart`中的一定`>val`。而由于BST的性质，`lpart`中的节点有一定会大于`cur`。于是，只需将`cur`的右儿子变成`lpart`，那么`cur`和`rpart`便是分裂得到的两颗新树的根。`cur->val > val`的操作同理。
 
-![](https://static.cdn.menci.xyz/oi-wiki/ds/images/treap-none-rot-split-by-val.svg?h=Z4dwNw)
+<img alt="" src="https://static.cdn.menci.xyz/oi-wiki/ds/images/treap-none-rot-split-by-val.svg?h=Z4dwNw">
 
 `merge`操作，接受两个treap `u`和`v`，且 **`v`中所有节点都比`u`中所有节点大** ，返回一颗新的treap。
 
