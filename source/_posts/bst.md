@@ -74,6 +74,187 @@ ll getType(ll x) {
 
 无旋Treap，顾名思义，不需要旋转操作。这是极少数不用旋转的平衡树之一。
 
+正如普通的平衡树中的`rotate`，无旋Treap中也有他的基本操作`split`和`merge`。通过这两种操作，可以十分轻松地实现平衡树的所有操作。
+
+分裂有两种：`split_by_rank`和`split_by_value`。顾名思义，一个是按排名分裂，一个是按值分裂。他们的写法十分相似。这里以按值分裂为例。
+
+`split`操作，接受两个参数`cur`和`val`，返回两颗treap的根，表示将以`cur`为根的treap分成两颗新的treap，其中一部分的值都满足`v<=val`而另一部分的值都满足`val<v`。也就是，以`val`为界将整棵树分成两半。
+
+考虑递归。由于BST的性质，`cur`左子的大小一定小于`cur->val`而右子一定大于`cur->val`。于是，我们只需考虑`cur->val`与`val`的大小即可。
+
+如果`cur->val <= val`，那么`cur`及其左子树一定属于分裂后的左子树，于是我们递归的处理右子树，对右子树进行`split`操作，得到两棵树`lpart`和`rpart`，那么根据`split`的定义，`lpart`中的一定`<=val`而`rpart`中的一定`>val`。而由于BST的性质，`lpart`中的节点有一定会大于`cur`。于是，只需将`cur`的右儿子变成`lpart`，那么`cur`和`rpart`便是分裂得到的两颗新树的根。`cur->val > val`的操作同理。
+
+![](https://static.cdn.menci.xyz/oi-wiki/ds/images/treap-none-rot-split-by-val.svg?h=Z4dwNw)
+
+`merge`操作，接受两个treap `u`和`v`，且 **`v`中所有节点都比`u`中所有节点大** ，返回一颗新的treap。
+
+思路与`split`类似。不妨假设`u`的权值比`v`小，也就是说合并后`v`是`u`的子节点（如果是按照小根堆的话）。由于`v`中所有节点都比`u`中所有节点大，所以只需将`u`的右儿子与`v`合并，然后`u`节点新的右儿子即可。
+
+有了`split`和`merge`，那么平衡树的其他操作都很好实现。
+
+插入一个新节点，只需通过两次`split`操作，将整棵树分成三部分：小于`val`，等于`val`和大于`val`（当然等于的那部分可能是空的）。如果等于的部分是空的，那么新建节点，否则`++count`即可。修改完再`merge`成一棵树，就完成了整个操作。删除操作同理。
+
+`getKth`和`getRank`也相当简单。只需`split_by_rank`和`split_by_value`即可。`getPrev`和`getNext`也同理。
+
+当然，无旋treap也是一颗bst，因此同样可以使用bst上的方法进行这些操作。这里的写法是按普通bst写法写的。
+
+代码：
+
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define ll long long
+#define pll pair<ll, ll>
+static constexpr const ll MAXN = 100010;
+static constexpr const ll INF = 1ll << (sizeof(ll) * 8 - 2);
+struct Node {
+  ll lson, rson;
+  ll size, data, pri, count;
+};
+static ll n;
+static ll root, endt;
+static Node treap[MAXN];
+void pushup(ll p) {
+  treap[p].size =
+      treap[treap[p].lson].size + treap[treap[p].rson].size + treap[p].count;
+}
+pll split(ll p, ll val) {
+  pll tmp;
+  if (p == 0)
+    return {0, 0};
+  if (treap[p].data <= val) {
+    tmp = split(treap[p].rson, val);
+    treap[p].rson = tmp.first;
+    pushup(p);
+    return {p, tmp.second};
+  } else {
+    tmp = split(treap[p].lson, val);
+    treap[p].lson = tmp.second;
+    pushup(p);
+    return {tmp.first, p};
+  }
+}
+ll merge(ll u, ll v) {
+  if (u == 0 || v == 0)
+    return u ^ v;
+  if (treap[u].pri <= treap[v].pri) {
+    treap[u].rson = merge(treap[u].rson, v);
+    pushup(u);
+    return u;
+  } else {
+    treap[v].lson = merge(u, treap[v].lson);
+    pushup(v);
+    return v;
+  }
+}
+void ins(ll val) {
+  static random_device rd;
+  static mt19937_64 mt(rd());
+  static uniform_int_distribution<ll> dist(1ll, MAXN);
+  static pll tmp, tmpl;
+  tmp = split(root, val);
+  tmpl = split(tmp.first, val - 1);
+  if (tmpl.second == 0) {
+    treap[++endt].data = val;
+    treap[endt].count = 1;
+    treap[endt].size = 1;
+    treap[endt].pri = dist(mt);
+    tmpl.second = endt;
+  } else {
+    ++treap[tmpl.second].size;
+    ++treap[tmpl.second].count;
+  }
+  root = merge(merge(tmpl.first, tmpl.second), tmp.second);
+}
+void del(ll val) {
+  static pll tmp, tmpl;
+  tmp = split(root, val);
+  tmpl = split(tmp.first, val - 1);
+  if (treap[tmpl.second].count > 1) {
+    --treap[tmpl.second].count;
+    --treap[tmpl.second].size;
+    tmpl.first = merge(tmpl.first, tmpl.second);
+  }
+  root = merge(tmpl.first, tmp.second);
+}
+ll getRank(ll p, ll val) {
+  if (treap[p].data == val)
+    return treap[treap[p].lson].size + 1;
+  return treap[p].data > val ? getRank(treap[p].lson, val)
+                             : getRank(treap[p].rson, val) +
+                                   treap[treap[p].lson].size + treap[p].count;
+}
+ll getKth(ll p, ll rk) {
+  if (treap[treap[p].lson].size >= rk)
+    return getKth(treap[p].lson, rk);
+  if (treap[treap[p].lson].size + treap[p].count >= rk)
+    return treap[p].data;
+  return getKth(treap[p].rson, rk - treap[treap[p].lson].size - treap[p].count);
+}
+ll getPrev(ll val) {
+  static ll p, res;
+  p = root;
+  res = -INF;
+  while (p) {
+    if (treap[p].data == val) {
+      p = treap[p].lson;
+      if (p) {
+        while (treap[p].rson)
+          p = treap[p].rson;
+        res = treap[p].data;
+      }
+      break;
+    }
+    if (treap[p].data < val)
+      res = max(res, treap[p].data);
+    p = treap[p].data < val ? treap[p].rson : treap[p].lson;
+  }
+  return res;
+}
+ll getNext(ll val) {
+  static ll p, res;
+  p = root;
+  res = INF;
+  while (p) {
+    if (treap[p].data == val) {
+      p = treap[p].rson;
+      if (p) {
+        while (treap[p].lson)
+          p = treap[p].lson;
+        res = treap[p].data;
+      }
+      break;
+    }
+    if (treap[p].data > val)
+      res = min(res, treap[p].data);
+    p = treap[p].data < val ? treap[p].rson : treap[p].lson;
+  }
+  return res;
+}
+static ll opt, x;
+#define pushcase(x, y)                                                         \
+  case x: {                                                                    \
+    y;                                                                         \
+    break;                                                                     \
+  }
+int main() {
+  cin >> n;
+  while (n--) {
+    cin >> opt >> x;
+    switch (opt) {
+      pushcase(1, ins(x));
+      pushcase(2, del(x));
+      pushcase(3, cout << getRank(root, x) << endl);
+      pushcase(4, cout << getKth(root, x) << endl);
+      pushcase(5, cout << getPrev(x) << endl);
+      pushcase(6, cout << getNext(x) << endl);
+    }
+  }
+  return 0;
+}
+
+```
+
 #### 可持久化Treap / 可持久化平衡树
 
 既然有了好写跑得也快的Treap，为什么还要FHQTreap呢？
