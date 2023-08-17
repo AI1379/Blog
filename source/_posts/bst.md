@@ -50,17 +50,169 @@ categories:
 
 `splay`操作做了一个事情：把一个节点旋转到了根。在OI中，我们还经常扩展这个操作，让他实现把一个节点旋转到作为另一个节点的儿子。
 
-我们首先定义一个函数`getType(x)`，表示一个点是自己父亲的左子还是右子：
+我们首先定义一个函数`which(x)`，表示一个点是自己父亲的左子还是右子：
 
 ```cpp
-ll getType(ll x) {
-    return splayt[fa[x]][1] == x;
-}
+bool which(ll x) { return x == splay[splay[x].par].son[1]; }
 ```
 
 `splay`的旋转一共有六种（其实是三种）情况：父节点是根，自己、自己的父亲、自己的祖父三点共线和三点不共线。这三类各包含两种情况：自己是左子和自己是右子。
 
+用Splay实现的线段树板子代码：
 
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define ll long long
+#define pll pair<ll, ll>
+const ll MAXN = 100010;
+class Splay {
+  struct Node {
+    ll son[2], par, val, sum, size, tag;
+  };
+  array<Node, MAXN> splay;
+  ll rt, tot = 0, size;
+  bool which(ll x) { return x == splay[splay[x].par].son[1]; }
+#define lson splay[p].son[0]
+#define rson splay[p].son[1]
+  void pushup(ll p) {
+    splay[p].size = splay[lson].size + splay[rson].size + 1;
+    splay[p].sum = splay[lson].sum + splay[rson].sum + splay[p].val;
+  }
+  void pushdown(ll p) {
+    if (splay[p].tag) {
+      splay[lson].sum += splay[lson].size * splay[p].tag;
+      splay[rson].sum += splay[rson].size * splay[p].tag;
+      splay[lson].val += splay[p].tag;
+      splay[rson].val += splay[p].tag;
+      splay[lson].tag += splay[p].tag;
+      splay[rson].tag += splay[p].tag;
+      splay[p].tag = 0;
+    }
+  }
+  void rotate(ll cur) {
+    auto p = splay[cur].par, gp = splay[p].par;
+    bool chkc = which(cur), chkp = which(p);
+    pushdown(gp);
+    pushdown(p);
+    splay[p].son[chkc] = splay[cur].son[chkc ^ 1];
+    if (splay[cur].son[chkc ^ 1])
+      splay[splay[cur].son[chkc ^ 1]].par = p;
+    splay[cur].son[chkc ^ 1] = p;
+    splay[p].par = cur;
+    splay[cur].par = gp;
+    if (gp)
+      splay[gp].son[chkp] = cur;
+    pushup(cur);
+    pushup(p);
+  }
+  void spl(ll cur, ll fa) {
+    for (auto p = splay[cur].par; p && p != fa; p = splay[cur].par) {
+      if (splay[p].par != fa)
+        rotate(which(cur) ^ which(p) ? cur : p);
+      rotate(cur);
+    }
+    if (fa == 0)
+      rt = cur;
+  }
+  ll getbyrank(ll rk) {
+    ll p = rt;
+    while (true) {
+      pushdown(p);
+      if (rk <= splay[lson].size) {
+        p = lson;
+      } else {
+        rk -= (splay[lson].size + 1);
+        if (rk == 0)
+          return p;
+        p = rson;
+      }
+    }
+  }
+  ll buildimpl(const array<ll, MAXN> &orig, ll l, ll r, ll pa) {
+    if (l > r)
+      return 0;
+    ll mid = (l + r) / 2, p = ++tot;
+    splay[p].par = pa;
+    splay[p].val = orig[mid];
+    lson = buildimpl(orig, l, mid - 1, p);
+    rson = buildimpl(orig, mid + 1, r, p);
+    pushup(p);
+    return p;
+  }
+  void modifynode(ll p, ll d) {
+    splay[p].sum += splay[p].size * d;
+    splay[p].val += d;
+    splay[p].tag += d;
+  }
+
+public:
+  void build(ll x, const array<ll, MAXN> &orig) {
+    size = x;
+    rt = buildimpl(orig, 1, x, 0);
+  }
+  void modify(ll l, ll r, ll diff) {
+    if (l != 1 && r != size) {
+      auto lptr = getbyrank(l - 1), rptr = getbyrank(r + 1);
+      spl(lptr, 0);
+      spl(rptr, lptr);
+      modifynode(splay[splay[rt].son[1]].son[0], diff);
+    } else if (l == 1 && r == size) {
+      modifynode(rt, diff);
+    } else if (l == 1) {
+      auto ptr = getbyrank(r + 1);
+      spl(ptr, 0);
+      modifynode(splay[rt].son[0], diff);
+    } else {
+      auto ptr = getbyrank(l - 1);
+      spl(ptr, 0);
+      modifynode(splay[rt].son[1], diff);
+    }
+  }
+  ll query(ll l, ll r) {
+    if (l != 1 && r != size) {
+      auto lptr = getbyrank(l - 1), rptr = getbyrank(r + 1);
+      spl(lptr, 0);
+      spl(rptr, lptr);
+      return splay[splay[splay[rt].son[1]].son[0]].sum;
+    } else if (l == 1 && r == size) {
+      return splay[rt].sum;
+    } else if (l == 1) {
+      auto ptr = getbyrank(r + 1);
+      spl(ptr, 0);
+      return splay[splay[rt].son[0]].sum;
+    } else {
+      auto ptr = getbyrank(l - 1);
+      spl(ptr, 0);
+      return splay[splay[rt].son[1]].sum;
+    }
+  }
+#undef lson
+#undef rson
+};
+ll n, q;
+array<ll, MAXN> orig;
+Splay splay;
+int main() {
+  ll opt, u, v, w;
+  cin >> n >> q;
+  for (int i = 1; i <= n; ++i) {
+    cin >> orig[i];
+  }
+  splay.build(n, orig);
+  while (q--) {
+    cin >> opt;
+    if (opt == 1) {
+      cin >> u >> v >> w;
+      splay.modify(u, v, w);
+    } else {
+      cin >> u >> v;
+      cout << splay.query(u, v) << endl;
+    }
+  }
+  return 0;
+}
+```
 
 ### Treap
 
@@ -253,6 +405,128 @@ int main() {
   return 0;
 }
 
+```
+
+区间修改求和：
+
+```cpp
+#include <bits/stdc++.h>
+#include <cstddef>
+#include <random>
+using namespace std;
+#define ll long long
+#define pll pair<ll, ll>
+const ll MAXN = 100010;
+class Treap {
+  struct Node {
+    ll lson, rson, val, tag, sum, size, pri;
+  };
+  array<Node, MAXN> treap;
+  ll tot = 0, rt, size;
+  void pushup(ll p) {
+    treap[p].size = treap[treap[p].lson].size + treap[treap[p].rson].size + 1;
+    treap[p].sum =
+        treap[treap[p].lson].sum + treap[treap[p].rson].sum + treap[p].val;
+  }
+  void pushdown(ll p) {
+    if (treap[p].tag) {
+      treap[treap[p].lson].sum += treap[treap[p].lson].size * treap[p].tag;
+      treap[treap[p].rson].sum += treap[treap[p].rson].size * treap[p].tag;
+      treap[treap[p].lson].val += treap[p].tag;
+      treap[treap[p].rson].val += treap[p].tag;
+      treap[treap[p].lson].tag += treap[p].tag;
+      treap[treap[p].rson].tag += treap[p].tag;
+      treap[p].tag = 0;
+    }
+  }
+  pll split(ll cur, ll rk) {
+    if (cur == 0)
+      return {0, 0};
+    if (treap[treap[cur].lson].size + 1 <= rk) {
+      pushdown(cur);
+      auto tmp = split(treap[cur].rson, rk - treap[treap[cur].lson].size - 1);
+      treap[cur].rson = tmp.first;
+      pushup(cur);
+      return {cur, tmp.second};
+    } else {
+      pushdown(cur);
+      auto tmp = split(treap[cur].lson, rk);
+      treap[cur].lson = tmp.second;
+      pushup(cur);
+      return {tmp.first, cur};
+    }
+  }
+  ll merge(ll u, ll v) {
+    if (u == 0 || v == 0)
+      return u ^ v;
+    if (treap[u].pri < treap[v].pri) {
+      pushdown(v);
+      treap[v].lson = merge(u, treap[v].lson);
+      pushup(v);
+      return v;
+    } else {
+      pushdown(u);
+      treap[u].rson = merge(treap[u].rson, v);
+      pushup(u);
+      return u;
+    }
+  }
+  ll build(const array<ll, MAXN> &orig, ll p) {
+    static std::random_device rd;
+    static std::mt19937 rng(rd());
+    static std::uniform_int_distribution<ll> dist(1, MAXN);
+    if (p > size)
+      return 0;
+    ll cur = ++tot;
+    treap[cur].pri = dist(rng);
+    treap[cur].val = orig[p];
+    pushup(cur);
+    return merge(cur, build(orig, p + 1));
+  }
+
+public:
+  void build(ll x, const array<ll, MAXN> &orig) {
+    size = x;
+    rt = build(orig, 1);
+  }
+  void modify(ll l, ll r, ll diff) {
+    auto tmp = split(rt, r);
+    auto tmpl = split(tmp.first, l - 1);
+    treap[tmpl.second].sum += treap[tmpl.second].size * diff;
+    treap[tmpl.second].val += diff;
+    treap[tmpl.second].tag += diff;
+    rt = merge(merge(tmpl.first, tmpl.second), tmp.second);
+  }
+  ll query(ll l, ll r) {
+    auto tmp = split(rt, r);
+    auto tmpl = split(tmp.first, l - 1);
+    auto res = treap[tmpl.second].sum;
+    rt = merge(merge(tmpl.first, tmpl.second), tmp.second);
+    return res;
+  }
+};
+ll n, q;
+array<ll, MAXN> orig;
+Treap splay;
+int main() {
+  ll opt, u, v, w;
+  cin >> n >> q;
+  for (int i = 1; i <= n; ++i) {
+    cin >> orig[i];
+  }
+  splay.build(n, orig);
+  while (q--) {
+    cin >> opt;
+    if (opt == 1) {
+      cin >> u >> v >> w;
+      splay.modify(u, v, w);
+    } else {
+      cin >> u >> v;
+      cout << splay.query(u, v) << endl;
+    }
+  }
+  return 0;
+}
 ```
 
 #### 可持久化Treap / 可持久化平衡树
