@@ -233,11 +233,103 @@ categories:
 
 ---
 
-斜率优化处理的是这样的一类最优化 dp，它的方程可以化成这样的形式：$b_i = \min_{j<i}\{y_j-k_ix_j\}$ 的形式。容易发现，这种情况下可以用线性规划的方法优化这个dp过程，从而将dp的状态转移转化为一个计算几何问题，然后用解决凸包的问题快速转移。
+斜率优化处理的是这样的一类最优化 dp，它的方程可以化成这样的形式：$b_i = \max_{j<i}\{y_j-k_ix_j\}$ 的形式。容易发现，这种情况下可以用线性规划的方法优化这个 dp 过程，从而将状态转移转化为一个计算几何问题，然后用解决凸包的问题快速转移。
 
-但是这个凸包问题是动态的，意味着我们需要动态加点求凸包。对于一些 $k_i$ 具有单调性的问题而言，可以用 `deque` 方便的解决，而如果不具有单调性则需要使用平衡树或cdq分治等繁琐的方式来实现动态凸包。李超树也是求解动态凸包的一个工具。
+但是这个凸包问题是动态的，意味着我们需要动态加点求凸包。对于一些 $k_i$ 具有单调性的问题而言，可以用 `deque` 方便的解决，而如果不具有单调性则需要使用平衡树或cdq分治等繁琐的方式来实现动态凸包。李超树本质上也是求解动态凸包的一个工具，因此同样可以用于求解斜率优化。
 
 ---
+
+普通的斜率优化是将状态转移方程转化成 $b_i=\max_{j<i}\{y_j-k_ix_j\}$ 的形式，然后把斜率为 $k_i$ 的直线从下往上移动直到和凸包相切；而对于李超线段树则是常把状态转移方程转化为 $y_i=\max_{j<i}\{k_jx_i+b_j\}$ 的形式。容易看到这两种形式在事实上是等价的。
+
+具体而言，每次转移之后求得对应的 $k_i$ 和 $b_i$ ，然后将这条直线加入到李超树中，每次转移的时候在李超树中查询 $x_i$ 对应的最大直线/最小直线，进行状态转移，从而将 $O(n^2)$ 的dp过程优化到 $O(n\log n)$。
+
+例题：[【SDOI2012】任务安排](https://www.luogu.com.cn/problem/P5785)
+
+首先考虑 dp 方程。令 $dp_i$ 为取前 $i$ 个任务且结束的最小开销，容易得到 dp 方程：
+
+$$
+
+dp_i = \min_{j<i}\{dp_j+s\cdot(sumc_n - sumc_j)+sumt_i\cdot(sumc_i-sumc_j)\}
+
+$$
+
+接下来重新处理这个方程，得到这个形式：
+
+$$
+
+dp_i-s\cdot sumc_n - sumt_i\cdot sumc_i = \min_{j<i}(dp_j-(s+sumt_i)\cdot sumc_j)
+
+$$
+
+显然变成了一次函数的形式。接下来在 $sumt$ 上建立李超线段树。注意，询问点只有 `n` 个，因此需要做离散化，使得空间开销落在可以接受的范围。
+
+完整代码：
+
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define ll long long
+#define lson (cur * 2)
+#define rson (cur * 2 + 1)
+const ll MAXN = 300010;
+ll n, s;
+ll t[MAXN], c[MAXN];
+ll sumt[MAXN], sumc[MAXN];
+ll k[MAXN], b[MAXN];
+ll unisumt[MAXN], pos[MAXN], tn;
+ll segt[MAXN * 4];
+ll dp[MAXN];
+ll calc(ll id, ll x) { return k[id] * unisumt[x] + b[id]; }
+void update(ll cur, ll cl, ll cr, ll id) {
+  if (cl == cr) {
+    if (calc(id, cl) < calc(segt[cur], cl))
+      segt[cur] = id;
+    return;
+  }
+  auto mid = (cl + cr) / 2;
+  if (calc(id, mid) < calc(segt[cur], mid))
+    swap(id, segt[cur]);
+  if (calc(id, cl) < calc(segt[cur], cl))
+    update(lson, cl, mid, id);
+  else if (calc(id, cr) < calc(segt[cur], cr))
+    update(rson, mid + 1, cr, id);
+}
+ll query(ll cur, ll cl, ll cr, ll x) {
+  if (cl == cr)
+    return calc(segt[cur], x);
+  auto mid = (cl + cr) / 2;
+  if (x <= mid)
+    return min(calc(segt[cur], x), query(lson, cl, mid, x));
+  else
+    return min(calc(segt[cur], x), query(rson, mid + 1, cr, x));
+  return 0;
+}
+int main() {
+  cin >> n >> s;
+  tn = n;
+  for (int i = 1; i <= n; ++i) {
+    cin >> t[i] >> c[i];
+    unisumt[i] = sumt[i] = sumt[i - 1] + t[i];
+    sumc[i] = sumc[i - 1] + c[i];
+  }
+  sort(unisumt + 1, unisumt + n + 1);
+  tn = unique(unisumt + 1, unisumt + n + 1) - unisumt - 1;
+  for (int i = 1; i <= n; ++i) {
+    pos[i] = lower_bound(unisumt + 1, unisumt + tn + 1, sumt[i]) - unisumt;
+  }
+  b[0] = 1e18;
+  for (int i = 1; i <= n; ++i) {
+    dp[i] = min(s * sumc[n], query(1, 1, tn, pos[i])) + sumt[i] * sumc[i];
+    k[i] = -sumc[i];
+    b[i] = dp[i] + s * (sumc[n] - sumc[i]);
+    update(1, 1, tn, i);
+  }
+  cout << dp[n] << endl;
+  return 0;
+}
+```
+
+这个题同样可以用 `deque` 的常规斜率优化方法处理，码量同样不大。但是在斜率变化不具有单调性的一些斜率优化问题中，相比起 `cdq` 和平衡树等数据结构，李超树的码量相对小得多。
 
 ## 双半群模型：线段树背后的数学模型
 
