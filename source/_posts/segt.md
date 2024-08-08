@@ -1,5 +1,5 @@
 ---
-title: 关于线段树：从0到双半群模型
+title: 关于线段树：从入门到入土
 date: 2024-06-30 09:51:27
 mathjax: true
 tags:
@@ -22,6 +22,14 @@ categories:
 最简单的[线段树1](https://www.luogu.com.cn/problem/P3372)就不赘述了。我相信在座的各位都可以十分流畅的写出一颗支持基础操作的线段树。至于[线段树2](https://www.luogu.com.cn/problem/P3373)，我们将在后面的双半群模型部分详细讨论这个问题及其加强版。
 
 这里提一个建议：找到一个自己最喜欢的线段树的写法，然后就一直沿用这个写法，这样考场上不容易写错。
+
+## 标记永久化：替代标记下传
+
+在传统线段树中，面对区间操作，我们常常使用懒标记的方式进行维护。当我们对一个做了懒标记的节点的子节点进行操作的时候，常常需要使用 **`pushdown`** 的方法下传标记，使子节点的 `val` 和 `tag` 处于一个正确的状态。然而，出于空间或者时间或者代码复杂度的考虑，有时候下传标记并不可行，这个时候便有了**标记永久化**的技术，可以代替标记下传。
+
+标记永久化的思想是这样的：我们把标记放在每个节点上，修改的时候不下传，查询的时候**累加路过的所有的标记**，从而实现和标记下传一样的效果。
+
+这个思想将在处理zkw线段树、李超线段树和可持久化线段树的时候用到。
 
 ## 离散化：缩小定义域的有效手段
 
@@ -88,6 +96,135 @@ categories:
 动态开点线段树的好处就是可以降低空间消耗，这样在处理一些空间比较紧张的题目时就可以防止`MLE`。
 
 ## zkw线段树：循环优化线段树
+
+这是一个神奇的数据结构，有点类似树状数组。
+
+首先，我们考察一棵传统线段树的结构。注意到，传统线段树里，数据总是存在叶子节点上的。如果恰好，我们的数据总量是二的幂，那么这棵树就会变成一棵满二叉树，这是线段树空间利用率最高的情况。这个时候考察数组中每个元素的位置与叶节点的编号位置，容易注意到：两者的差值是一个定值。这种情况下，线段树的许多操作可以被循环化。
+
+然后，众所周知，循环的常数是小于递归的。因此，我们考虑，能不能通过这种方式使用循环代替线段树操作中的递归。
+
+首先，根据前面所说的结论，建树的过程是显然的。只需要把原数组的内容放到线段树中对应叶节点的位置即可。代码很显然。这里我们可以看到zkw线段树的一个核心思想：自底向上。
+
+```cpp
+void build() {
+  for (int i = 1; i <= n; ++i) {
+    segt[n + i].val = val[i];
+  }
+  for (int i = n; i >= 1; --i) {
+    segt[i].val = segt[i * 2].val + segt[i * 2 + 1].val;
+  }
+}
+```
+
+然后考虑区间查询。假设我们要查询 $[l,r]$ 区间的和，我们将其转化成 $(l-1,r+1)$ 开区间处理。例如，在这棵树里，如果我们查找 $[2,5]$ 的区间信息，我们就可以设置两个指针 `p=1` 和 `q=6` ，然后分别向上跳，直到两者有相同的父亲。显然，一个节点的父亲编号是自己编号的一半。这个时候我们可以感性地注意到，跳的路径会围出来树上的一个区间，这个区间就是要查询的区间。事实上，跳的过程就是将边界上的点排除到答案之外的过程。接着模拟，我们会发现：**当左指针是左儿子，或者右指针是右儿子的时候，这个指针对应的兄弟节点的子树就是答案的一部分**。而判定左右儿子的过程只需要判断当前节点的奇偶性即可。
+
+![图源知乎](https://pic2.zhimg.com/80/v2-e3823c417f81dedca9de97ce81fb25f5_720w.webp)
+
+接着考虑区间修改。很显然，在 zkw 线段树的自底向上过程中，我们是没有办法进行标记下传的，这个时候就需要应用**标记持久化**的思想了。区间修改的过程大体上和区间查询是类似的，但是注意：修改过程会对所有的父节点都造成影响，因此需要一直跳到根节点。同样，因为标记持久化的原因，查询也需要向上跳到根节点。
+
+最后是半封装的模板，只需修改三个 `merge` 以及对应的 `Info` 和 `Tag` 即可。
+
+```cpp
+#include <bits/stdc++.h>
+using namespace std;
+#define ll long long
+const ll MAXN = 100010;
+struct Node {
+  struct Info {
+    ll val, len;
+  } info;
+  struct Tag {
+    ll add;
+  } tag;
+};
+ll lowbit(ll x) { return x & (-x); }
+ll n, m, n0;
+ll val[MAXN * 2];
+Node segt[MAXN * 2];
+Node::Info merge(Node::Info lhs, Node::Info rhs) {
+  return Node::Info{lhs.val + rhs.val, lhs.len + rhs.len};
+}
+Node::Info merge(Node::Info info, Node::Tag tag) {
+  return Node::Info{info.val + info.len * tag.add, info.len};
+}
+Node::Tag merge(Node::Tag pre, Node::Tag cur) {
+  return Node::Tag{pre.add + cur.add};
+}
+void pushup(int cur) {
+  segt[cur].info = merge(segt[cur * 2].info, segt[cur * 2 + 1].info);
+  segt[cur].info = merge(segt[cur].info, segt[cur].tag);
+}
+void build() {
+  for (int i = 1; i <= n; ++i) {
+    segt[i + n].info = Node::Info{val[i], 1};
+  }
+  for (int i = n; i >= 1; --i) {
+    pushup(i);
+  }
+}
+void update(int l, int r, Node::Tag tag) {
+  int p = l + n - 1, q = r + n + 1;
+  for (; p / 2 != q / 2; p >>= 1, q >>= 1) {
+    if (p < n) {
+      pushup(p);
+      pushup(q);
+    }
+    if (p % 2 == 0) {
+      segt[p ^ 1].info = merge(segt[p ^ 1].info, tag);
+      segt[p ^ 1].tag = merge(segt[p ^ 1].tag, tag);
+    }
+    if (q % 2 == 1) {
+      segt[q ^ 1].info = merge(segt[q ^ 1].info, tag);
+      segt[q ^ 1].tag = merge(segt[q ^ 1].tag, tag);
+    }
+  }
+  for (; p; p >>= 1, q >>= 1) {
+    pushup(p);
+    pushup(q);
+  }
+}
+Node::Info query(int l, int r) {
+  int p = l + n - 1, q = r + n + 1;
+  Node::Info linfo = {0, 0}, rinfo = {0, 0};
+  for (; p / 2 != q / 2; p >>= 1, q >>= 1) {
+    linfo = merge(linfo, segt[p].tag);
+    rinfo = merge(rinfo, segt[q].tag);
+    if (p % 2 == 0) {
+      linfo = merge(linfo, segt[p ^ 1].info);
+    }
+    if (q % 2 == 1) {
+      rinfo = merge(rinfo, segt[q ^ 1].info);
+    }
+  }
+  for (; p; p >>= 1, q >>= 1) {
+    linfo = merge(linfo, segt[p].tag);
+    rinfo = merge(rinfo, segt[q].tag);
+  }
+  return merge(linfo, rinfo);
+}
+int main() {
+  ll op, u, v, w;
+  ios::sync_with_stdio(false);
+  cin >> n >> m;
+  n0 = n;
+  for (int i = 1; i <= n0; ++i) {
+    cin >> val[i];
+  }
+  while (n != lowbit(n))
+    n += lowbit(n);
+  build();
+  for (int i = 1; i <= m; ++i) {
+    cin >> op >> u >> v;
+    if (op == 1) {
+      cin >> w;
+      update(u, v, Node::Tag{w});
+    } else if (op == 2) {
+      cout << query(u, v).val << endl;
+    }
+  }
+  return 0;
+}
+```
 
 ## 李超线段树：处理平面上的线段问题
 
@@ -169,7 +306,7 @@ categories:
 
 ### RMQ
 
-非常简单常规，不再赘述。
+非常显然，不再赘述。
 
 ### 区间历史最值
 
@@ -371,7 +508,7 @@ int main() {
 
 神发现，$\times$会创造出乐园中所没有的元素，这是不好的。于是便有了**封闭性**：$\forall\  a,b\in \mathcal D,\ a\times b \in \mathcal D$
 
-神发现，$\times$的变换十分杂乱无章，于是便有了**结合律**：$a\times (b\times c) = (a \times b) \times c$
+神发现，$\times$的变换十分混乱，交换运算顺序结果就可能改变，于是便有了**结合律**：$a\times (b\times c) = (a \times b) \times c$
 
 神看 $\times$ 是好的，于是便把 $\mathcal D$ 和 $\times$ 放在一起，得到了**半群**：$(\mathcal D,\ \times)$
 
