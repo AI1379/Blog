@@ -636,7 +636,7 @@ aside:
     category: true
   card_author:
     enable: true
-    description: 不务正业的OIer 坐标杭州
+    description: zju大一在读 高分子系
     button:
       enable: true
       icon: fab fa-github
