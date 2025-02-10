@@ -5,12 +5,12 @@ type: 'about'
 top_img: /img/about.jpg
 ---
 
-坐标杭州。一个不务正业的高中OIer，偶尔玩玩数竞题。
+浙江大学大一在读，目前在高分子系，计划转入信息与计算科学专业。前 OIer，会点算法。偶尔写写技术博客。
 
-略会C++和js，在学C#
+[![RM's GitHub stats](https://github-readme-stats.vercel.app/api?username=AI1379&count_private=true)](https://github.com/AI1379)
 
-Love Disney & Harry Potter
+个人邮箱：[listener1381@outlook.com](mailto:listener1381@outlook.com)
 
-Elsanna厨
+知乎：[@Arendellian13](https://www.zhihu.com/people/ai1379)
 
-Twitter: [@Arendellian13](https://twitter.com/arendellian13)
+GitHub: [AI1379](https://github.com/AI1379)
